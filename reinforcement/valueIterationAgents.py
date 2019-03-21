@@ -68,7 +68,7 @@ class ValueIterationAgent(ValueEstimationAgent):
             for state in self.mdp.getStates():
                 opt_action = self.computeActionFromValues(state) # find optimal action based on V_k
                 if opt_action:
-                    V[state] = self.computeQValueFromValues(state, opt_action) # find max q-value for given state
+                    V[state] = self.computeQValueFromValues(state, opt_action) # find q-value for optimal action in state
             self.values = V
             k += 1
 
@@ -177,3 +177,38 @@ class PrioritizedSweepingValueIterationAgent(AsynchronousValueIterationAgent):
 
     def runValueIteration(self):
         "*** YOUR CODE HERE ***"
+        # compute predecessors for all states
+        predecessors = {}
+        states = []
+        for state in self.mdp.getStates():
+            if not self.mdp.isTerminal(state):
+                states.append(state)
+            for action in self.mdp.getPossibleActions(state):
+                for nextState, prob in self.mdp.getTransitionStatesAndProbs(state, action):
+                    if nextState not in predecessors:
+                        predecessors[nextState] = set()
+                    predecessors[nextState].add(state)
+        # run priority sweep value iteration
+        q = util.PriorityQueue()
+        k = 0
+        while k < self.iterations:
+            # populate state priorities based on largest error
+            for state in states:
+                # find state value
+                V = None
+                opt_action = self.computeActionFromValues(state) # find optimal action based on V_k
+                if opt_action:
+                    V = self.computeQValueFromValues(state, opt_action) # find q-value for optimal action in state
+                    diff = abs(self.getValue(state) - V)
+                    if diff > self.theta or not k:
+                        q.update(state, -diff)
+            if q.isEmpty():
+                break # no states to update, terminate
+            # update value (find V_k+1) for prioterized state (with highest error)
+            state = q.pop()
+            opt_action = self.computeActionFromValues(state) # find optimal action based on V_k
+            if opt_action:
+                self.values[state] = self.computeQValueFromValues(state, opt_action) # find q-value for optimal action in state
+            # update next set of states to sweep
+            states = predecessors[state]
+            k += 1
